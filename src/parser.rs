@@ -326,8 +326,8 @@ generate! { instr -> Instr = {
         0x10 => Instr::Call(run!(funcidx)),
         0x11 => {
             let x = run!(typeidx);
-            run!(expect_byte(0x00));
-            Instr::CallIndirect(x)
+            let table = run!(tableidx);
+            Instr::CallIndirect(table, x)
         },
 
         // Parametric instructions
@@ -560,6 +560,8 @@ generate! { instr -> Instr = {
                 0x05 => Instr::ICvtOp(BitSize::B64, intop::CvtOp::TruncSatUF32),
                 0x06 => Instr::ICvtOp(BitSize::B64, intop::CvtOp::TruncSatSF64),
                 0x07 => Instr::ICvtOp(BitSize::B64, intop::CvtOp::TruncSatUF64),
+                0x0a => { run!(expect_byte(0x00)); run!(expect_byte(0x00)); Instr::MemCopy },
+                0x0b => { run!(expect_byte(0x00)); Instr::MemFill },
                 b => err!("Invalid saturation trunctation {:#x}", b),
             }
         }
@@ -741,6 +743,11 @@ generate! { function_name -> (FuncIdx, Name) = {
     let name = run!(name);
     (idx, name)
 }}
+generate! { global_name -> (GlobalIdx, Name) = {
+    let idx = run!(globalidx);
+    let name = run!(name);
+    (idx, name)
+}}
 generate! { names -> Names = {
     // Reference: https://github.com/WebAssembly/wabt/blob/713bece/src/binary-reader.cc#L1634
     // This is a custom section, that appears to show up in WASI modules.
@@ -749,19 +756,30 @@ generate! { names -> Names = {
         module: None,
         functions: HashMap::new(),
         locals: HashMap::new(),
+        globals: HashMap::new(),
     };
-    let name_type = run!(u32); // module = 0, function = 1, local = 2
-    if name_type != 1 {
-        // We don't support non-function names just yet. Might add it
-        // in the future.
-        unimplemented!()
-    }
-    let subsection_size = run!(u32);
-    if subsection_size > 0 {
-        let mut inp = inp![..subsection_size as usize];
-        names.functions = run_manual!(vec(inp, function_name)).into_iter().collect();
-        if inp.len() != 0 {
-            err!("Unused bytes in custom name section")
+    while peek_inp!(@@@length@@@) != 0 {
+        let name_type = run!(byte);
+        let subsection_size = run!(u32);
+        if subsection_size > 0 {
+            let mut inp = inp![..subsection_size as usize];
+            match name_type {
+                0 => {
+                    names.module = Some(run_manual!(name(inp)));
+                },
+                1 => {
+                    names.functions = run_manual!(vec(inp, function_name)).into_iter().collect();
+                },
+                7 => {
+                    names.globals = run_manual!(vec(inp, global_name)).into_iter().collect();
+                },
+                _ => {
+                    err!("Unimplemented name type {}", name_type)
+                },
+            };
+            if inp.len() != 0 {
+                err!("Unused bytes in custom name section")
+            }
         }
     }
     names
@@ -833,6 +851,7 @@ generate! { module -> Module = {
                 module: None,
                 functions: HashMap::new(),
                 locals: HashMap::new(),
+                globals: HashMap::new(),
             }
         }
     };

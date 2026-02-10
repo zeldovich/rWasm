@@ -639,6 +639,24 @@ fn print_instr(
                 }
             }
         }
+        MemFill => {
+            let n = pop!(i32);
+            let v = pop!(i32);
+            let addr = pop!(i32);
+            let addr_end = format!("({} + {})", addr, n);
+
+            Ok(format!("self.memory[{} as usize..{} as usize].fill({} as u8);",
+                addr, addr_end, v))
+        }
+        MemCopy => {
+            let n = pop!(i32);
+            let src = pop!(i32);
+            let dst = pop!(i32);
+            let src_end = format!("({} + {})", src, n);
+
+            Ok(format!("self.memory.copy_within({} as usize..{} as usize, {} as usize);",
+                src, src_end, dst))
+        }
         MemSize => {
             // Note: The spec defines Page Size = 65536
             let inner_mem_size = if opts.fixed_mem_size.is_some() {
@@ -924,7 +942,10 @@ fn print_instr(
 
             Ok(code)
         }
-        CallIndirect(typ_idx) => {
+        CallIndirect(table_idx, typ_idx) => {
+            if table_idx.0 != 0 {
+                eyre!("non-zero table not implemented");
+            }
             if opts.inline_indirect_calls {
                 let ((stack_from, stack_to), code) =
                     print_inline_indirect_call(m, typ_idx, ps.stack_size.unwrap())?;

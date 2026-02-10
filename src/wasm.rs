@@ -81,7 +81,7 @@ pub mod syntax {
         pub struct TableIdx(pub u32);
         #[derive(Copy, Clone, Debug)]
         pub struct MemIdx(pub u32);
-        #[derive(Copy, Clone, Debug)]
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
         pub struct GlobalIdx(pub u32);
         #[derive(Copy, Clone, Debug)]
         pub struct LocalIdx(pub u32);
@@ -273,6 +273,8 @@ pub mod syntax {
             MemStore(MemStore),
             MemSize,
             MemGrow,
+            MemCopy,
+            MemFill,
 
             // Control instructions
             Nop,
@@ -285,7 +287,7 @@ pub mod syntax {
             BrTable(Vec<LabelIdx>, LabelIdx),
             Return,
             Call(FuncIdx),
-            CallIndirect(TypeIdx),
+            CallIndirect(TableIdx, TypeIdx),
         }
 
         #[derive(Debug)]
@@ -315,7 +317,8 @@ pub mod syntax {
         pub struct Names {
             pub module: Option<Name>,
             pub functions: std::collections::HashMap<FuncIdx, Name>,
-            pub locals: std::collections::HashMap<FuncIdx, Vec<Name>>,
+            pub locals: std::collections::HashMap<LocalIdx, Vec<Name>>,
+            pub globals: std::collections::HashMap<GlobalIdx, Name>,
         }
 
         pub enum FuncInternals {
