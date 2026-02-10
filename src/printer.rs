@@ -944,8 +944,8 @@ fn print_instr(
         }
         CallIndirect(table_idx, typ_idx) => {
             if table_idx.0 != 0 {
-                eyre!("non-zero table not implemented");
-            }
+                Err(eyre!("non-zero table not implemented"))
+            } else
             if opts.inline_indirect_calls {
                 let ((stack_from, stack_to), code) =
                     print_inline_indirect_call(m, typ_idx, ps.stack_size.unwrap())?;
